@@ -1,0 +1,25 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: titan-worker-pdb
+  labels:
+    app.kubernetes.io/name: titan
+    app.kubernetes.io/component: worker
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: titan-worker
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: titan-api-pdb
+  labels:
+    app.kubernetes.io/name: titan
+    app.kubernetes.io/component: api
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: titan-api

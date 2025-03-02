@@ -1,0 +1,94 @@
+# Titan Configuration File
+# ========================
+# This is an example configuration file for the Titan distributed job queue system.
+# Copy this file to config.yaml and modify as needed.
+#
+# IMPORTANT: Never store secrets (passwords, API keys) in this file!
+# All secrets should be set via environment variables.
+#
+# Environment variables take precedence over values in this file.
+# All environment variables are prefixed with TITAN_ and use underscores.
+# Example: redis.host -> TITAN_REDIS_HOST
+
+# Redis Configuration
+# -------------------
+# Redis is used as the message broker for the job queue.
+redis:
+  # Redis server hostname
+  host: localhost
+  
+  # Redis server port
+  port: 6379
+  
+  # Redis database number (0-15)
+  db: 0
+  
+  # Connection pool size
+  pool_size: 10
+  
+  # Password is set via environment variable TITAN_REDIS_PASSWORD
+  # DO NOT set password here - use environment variables
+
+# PostgreSQL Configuration
+# ------------------------
+# PostgreSQL stores job metadata, history, and state.
+postgres:
+  # PostgreSQL server hostname
+  host: localhost
+  
+  # PostgreSQL server port
+  port: 5432
+  
+  # Database user
+  user: titan
+  
+  # Database name
+  database: titan
+  
+  # SSL mode (disable, require, verify-ca, verify-full)
+  ssl_mode: disable
+  
+  # Password is set via environment variable TITAN_POSTGRES_PASSWORD
+  # DO NOT set password here - use environment variables
+
+# API Server Configuration
+# ------------------------
+# Settings for the HTTP API server.
+api:
+  # Port to listen on
+  port: 8080
+  
+  # Read timeout for incoming requests
+  # Format: Go duration string (e.g., "30s", "1m")
+  read_timeout: 30s
+  
+  # Write timeout for outgoing responses
+  write_timeout: 30s
+
+# Worker Configuration
+# --------------------
+# Settings for job processing workers.
+worker:
+  # Number of concurrent job processors per worker instance
+  concurrency: 10
+  
+  # How often to poll for new jobs
+  poll_interval: 1s
+  
+  # Maximum number of retry attempts for failed jobs
+  max_retries: 3
+  
+  # Backoff settings for job retries
+  # Uses exponential backoff: delay = min(initial * factor^attempt, max)
+  backoff_initial: 1s
+  backoff_max: 1m
+  backoff_factor: 2.0
+
+# Logging Configuration
+# ---------------------
+logging:
+  # Log level: debug, info, warn, error
+  level: info
+  
+  # Log format: json (structured) or text (human-readable)
+  format: json

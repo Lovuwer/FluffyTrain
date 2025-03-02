@@ -1,0 +1,207 @@
+version: "3.9"
+
+services:
+  # Redis - Message broker for job queue
+  redis:
+    image: redis:7.4-alpine
+    container_name: titan-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    networks:
+      - titan-network
+
+  # PostgreSQL - Job metadata and state storage
+  postgres:
+    image: postgres:15.10-alpine
+    container_name: titan-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: titan
+      POSTGRES_PASSWORD: ${TITAN_POSTGRES_PASSWORD:-titanpass}
+      POSTGRES_DB: titan
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U titan -d titan"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - titan-network
+
+  # API Server
+  api:
+    build:
+      context: ..
+      dockerfile: deployments/Dockerfile.api
+    container_name: titan-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      TITAN_REDIS_HOST: redis
+      TITAN_REDIS_PORT: 6379
+      TITAN_REDIS_PASSWORD: ${TITAN_REDIS_PASSWORD:-}
+      TITAN_POSTGRES_HOST: postgres
+      TITAN_POSTGRES_PORT: 5432
+      TITAN_POSTGRES_USER: titan
+      TITAN_POSTGRES_PASSWORD: ${TITAN_POSTGRES_PASSWORD:-titanpass}
+      TITAN_POSTGRES_DATABASE: titan
+      TITAN_API_PORT: 8080
+      TITAN_LOGGING_LEVEL: ${TITAN_LOGGING_LEVEL:-info}
+      TITAN_LOGGING_FORMAT: ${TITAN_LOGGING_FORMAT:-json}
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    networks:
+      - titan-network
+
+  # Worker 1
+  worker-1:
+    build:
+      context: ..
+      dockerfile: deployments/Dockerfile.worker
+    container_name: titan-worker-1
+    restart: unless-stopped
+    environment:
+      TITAN_REDIS_HOST: redis
+      TITAN_REDIS_PORT: 6379
+      TITAN_REDIS_PASSWORD: ${TITAN_REDIS_PASSWORD:-}
+      TITAN_POSTGRES_HOST: postgres
+      TITAN_POSTGRES_PORT: 5432
+      TITAN_POSTGRES_USER: titan
+      TITAN_POSTGRES_PASSWORD: ${TITAN_POSTGRES_PASSWORD:-titanpass}
+      TITAN_POSTGRES_DATABASE: titan
+      TITAN_WORKER_CONCURRENCY: ${TITAN_WORKER_CONCURRENCY:-10}
+      TITAN_LOGGING_LEVEL: ${TITAN_LOGGING_LEVEL:-info}
+      TITAN_LOGGING_FORMAT: ${TITAN_LOGGING_FORMAT:-json}
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "pgrep", "-x", "titan-worker"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    networks:
+      - titan-network
+
+  # Worker 2
+  worker-2:
+    build:
+      context: ..
+      dockerfile: deployments/Dockerfile.worker
+    container_name: titan-worker-2
+    restart: unless-stopped
+    environment:
+      TITAN_REDIS_HOST: redis
+      TITAN_REDIS_PORT: 6379
+      TITAN_REDIS_PASSWORD: ${TITAN_REDIS_PASSWORD:-}
+      TITAN_POSTGRES_HOST: postgres
+      TITAN_POSTGRES_PORT: 5432
+      TITAN_POSTGRES_USER: titan
+      TITAN_POSTGRES_PASSWORD: ${TITAN_POSTGRES_PASSWORD:-titanpass}
+      TITAN_POSTGRES_DATABASE: titan
+      TITAN_WORKER_CONCURRENCY: ${TITAN_WORKER_CONCURRENCY:-10}
+      TITAN_LOGGING_LEVEL: ${TITAN_LOGGING_LEVEL:-info}
+      TITAN_LOGGING_FORMAT: ${TITAN_LOGGING_FORMAT:-json}
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "pgrep", "-x", "titan-worker"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    networks:
+      - titan-network
+
+  # Worker 3
+  worker-3:
+    build:
+      context: ..
+      dockerfile: deployments/Dockerfile.worker
+    container_name: titan-worker-3
+    restart: unless-stopped
+    environment:
+      TITAN_REDIS_HOST: redis
+      TITAN_REDIS_PORT: 6379
+      TITAN_REDIS_PASSWORD: ${TITAN_REDIS_PASSWORD:-}
+      TITAN_POSTGRES_HOST: postgres
+      TITAN_POSTGRES_PORT: 5432
+      TITAN_POSTGRES_USER: titan
+      TITAN_POSTGRES_PASSWORD: ${TITAN_POSTGRES_PASSWORD:-titanpass}
+      TITAN_POSTGRES_DATABASE: titan
+      TITAN_WORKER_CONCURRENCY: ${TITAN_WORKER_CONCURRENCY:-10}
+      TITAN_LOGGING_LEVEL: ${TITAN_LOGGING_LEVEL:-info}
+      TITAN_LOGGING_FORMAT: ${TITAN_LOGGING_FORMAT:-json}
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "pgrep", "-x", "titan-worker"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    networks:
+      - titan-network
+
+volumes:
+  redis-data:
+    name: titan-redis-data
+  postgres-data:
+    name: titan-postgres-data
+
+networks:
+  titan-network:
+    name: titan-network
+    driver: bridge

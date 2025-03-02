@@ -1,0 +1,49 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: titan-dev
+
+resources:
+  - ../../base
+
+nameSuffix: -dev
+
+patches:
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: titan-api
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: titan-worker
+  - patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+    target:
+      kind: HorizontalPodAutoscaler
+      name: titan-api-hpa
+  - patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 3
+    target:
+      kind: HorizontalPodAutoscaler
+      name: titan-worker-hpa
+
+configMapGenerator:
+  - name: titan-config
+    behavior: merge
+    literals:
+      - TITAN_LOGGING_LEVEL=debug
+      - TITAN_WORKER_CONCURRENCY=5

@@ -1,0 +1,74 @@
+# Titan API Server Dockerfile
+# Multi-stage build for minimal production image
+#
+# Build: docker build -f deployments/Dockerfile.api -t titan-api .
+# Run:   docker run -p 8080:8080 titan-api
+
+# ==============================================================================
+# Stage 1: Build
+# ==============================================================================
+FROM golang:1.21-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git ca-certificates tzdata
+
+# Set working directory
+WORKDIR /build
+
+# Copy go.mod and go.sum first for better layer caching
+COPY go.mod go.sum* ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the API binary
+# CGO_ENABLED=0 for static binary
+# -ldflags for smaller binary
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-s -w -X main.version=$(git describe --tags --always --dirty 2>/dev/null || echo 'dev')" \
+    -o titan-api \
+    ./cmd/api
+
+# ==============================================================================
+# Stage 2: Production
+# ==============================================================================
+FROM alpine:3.19
+
+# Add labels
+LABEL org.opencontainers.image.title="Titan API Server"
+LABEL org.opencontainers.image.description="API server for Titan distributed job queue"
+LABEL org.opencontainers.image.source="https://github.com/joek3softwares-boop/titan"
+
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates tzdata wget
+
+# Create non-root user for security
+RUN addgroup -S titan && adduser -S titan -G titan
+
+# Set working directory
+WORKDIR /app
+
+# Copy binary from builder
+COPY --from=builder /build/titan-api .
+
+# Copy config directory (for config.yaml.example reference)
+COPY config/ ./config/
+
+# Set ownership
+RUN chown -R titan:titan /app
+
+# Switch to non-root user
+USER titan
+
+# Expose API port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD wget -q --spider http://localhost:8080/health || exit 1
+
+# Run the API server
+ENTRYPOINT ["./titan-api"]

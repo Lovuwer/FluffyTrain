@@ -1,0 +1,38 @@
+# go binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.dylib
+*.test
+*.out
+
+# go modules
+go.work
+go.work.sum
+vendor/
+
+# go coverage
+coverage.out
+coverage.txt
+coverage.html
+
+# environment variables
+.env
+.env.local
+
+# ide stuff
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# os files
+.DS_Store
+
+# logs
+*.log
+
+# config files (keep examples)
+config/config.yaml
+!config/config.yaml.example

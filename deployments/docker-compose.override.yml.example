@@ -1,0 +1,64 @@
+# Docker Compose Override for Local Development
+# ==============================================
+# Copy this file to docker-compose.override.yml for local customizations.
+# This file is gitignored and will not be committed.
+#
+# Usage:
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#   # Edit docker-compose.override.yml as needed
+#   docker-compose up
+#
+# The override file is automatically merged with docker-compose.yml
+
+version: "3.9"
+
+services:
+  # Example: Enable debug logging for API
+  api:
+    environment:
+      TITAN_LOGGING_LEVEL: debug
+      TITAN_LOGGING_FORMAT: text
+    # Mount local config for development
+    volumes:
+      - ../config:/app/config:ro
+
+  # Example: Reduce worker concurrency for development
+  worker-1:
+    environment:
+      TITAN_WORKER_CONCURRENCY: 5
+      TITAN_LOGGING_LEVEL: debug
+      TITAN_LOGGING_FORMAT: text
+
+  worker-2:
+    environment:
+      TITAN_WORKER_CONCURRENCY: 5
+      TITAN_LOGGING_LEVEL: debug
+      TITAN_LOGGING_FORMAT: text
+
+  worker-3:
+    environment:
+      TITAN_WORKER_CONCURRENCY: 5
+      TITAN_LOGGING_LEVEL: debug
+      TITAN_LOGGING_FORMAT: text
+
+  # Example: Customize Redis memory for local development
+  redis:
+    # Override command with different config options
+    command: >
+      redis-server
+      /usr/local/etc/redis/redis.conf
+      --maxmemory 100mb
+
+  # Example: Add pgAdmin for database management
+  # pgadmin:
+  #   image: dpage/pgadmin4:8.3
+  #   container_name: titan-pgadmin
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: admin@titan.local
+  #     PGADMIN_DEFAULT_PASSWORD: admin
+  #   ports:
+  #     - "5050:80"
+  #   depends_on:
+  #     - postgres
+  #   networks:
+  #     - titan-network

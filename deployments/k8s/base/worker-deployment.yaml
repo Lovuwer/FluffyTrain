@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: titan-worker
+  labels:
+    app.kubernetes.io/name: titan
+    app.kubernetes.io/component: worker
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: titan-worker
+  template:
+    metadata:
+      labels:
+        app: titan-worker
+        app.kubernetes.io/name: titan
+        app.kubernetes.io/component: worker
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: worker
+          image: titan-worker:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: titan-config
+            - secretRef:
+                name: titan-secrets
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          # Workers don't have HTTP endpoints, use exec probe
+          livenessProbe:
+            exec:
+              command:
+                - pgrep
+                - -x
+                - titan-worker
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: titan-worker
+                topologyKey: kubernetes.io/hostname

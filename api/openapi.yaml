@@ -1,0 +1,448 @@
+openapi: 3.0.3
+info:
+  title: Titan Job Queue API
+  description: |
+    Titan is a distributed job queue system built with Go and Redis.
+    This API allows you to submit, manage, and monitor jobs.
+  version: 1.0.0
+  contact:
+    name: Titan Support
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Returns the health status of the API server.
+      operationId: health
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  version:
+                    type: string
+                    example: 1.0.0
+
+  /ready:
+    get:
+      summary: Readiness check
+      description: Returns the readiness status of the API server including queue connectivity.
+      operationId: ready
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Server is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ready
+        '503':
+          description: Server is not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/jobs:
+    post:
+      summary: Submit a new job
+      description: Creates and enqueues a new job for processing.
+      operationId: createJob
+      tags:
+        - Jobs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateJobRequest'
+      responses:
+        '201':
+          description: Job created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateJobResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/jobs/batch:
+    post:
+      summary: Submit multiple jobs
+      description: Creates and enqueues multiple jobs in a single request.
+      operationId: createJobBatch
+      tags:
+        - Jobs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - jobs
+              properties:
+                jobs:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/CreateJobRequest'
+      responses:
+        '201':
+          description: Jobs created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CreateJobResponse'
+                  created:
+                    type: integer
+                    description: Number of jobs successfully created
+
+  /api/v1/jobs/{id}:
+    get:
+      summary: Get job details
+      description: Returns the details of a specific job.
+      operationId: getJob
+      tags:
+        - Jobs
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Job details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      summary: Cancel a pending job
+      description: Cancels a job that is still pending. Cannot cancel jobs that are already processing.
+      operationId: deleteJob
+      tags:
+        - Jobs
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Job deleted successfully
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Job cannot be deleted (not pending)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/jobs/{id}/result:
+    get:
+      summary: Get job result
+      description: Returns the result of a completed job.
+      operationId: getJobResult
+      tags:
+        - Jobs
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Job result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    enum: [completed]
+                  result:
+                    type: object
+        '404':
+          description: Job not found or not completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/queues/stats:
+    get:
+      summary: Get queue statistics
+      description: Returns statistics about all queues.
+      operationId: getQueueStats
+      tags:
+        - Queues
+      responses:
+        '200':
+          description: Queue statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueueStats'
+
+  /api/v1/dlq:
+    get:
+      summary: List dead letter queue jobs
+      description: Returns jobs in the dead letter queue.
+      operationId: listDLQ
+      tags:
+        - Dead Letter Queue
+      parameters:
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: DLQ jobs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Job'
+                  offset:
+                    type: integer
+                  limit:
+                    type: integer
+                  count:
+                    type: integer
+
+  /api/v1/dlq/{id}/retry:
+    post:
+      summary: Retry a dead letter job
+      description: Moves a job from the dead letter queue back to the pending queue.
+      operationId: retryDLQJob
+      tags:
+        - Dead Letter Queue
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Job re-queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    example: pending
+                  message:
+                    type: string
+        '500':
+          description: Failed to retry job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    CreateJobRequest:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          description: Job type (e.g., "send_email", "process_image")
+          example: echo
+        payload:
+          type: object
+          description: Arbitrary JSON payload for the job
+          example: {"message": "hello"}
+        priority:
+          type: integer
+          description: Job priority (1=low, 5=normal, 10=critical)
+          minimum: 1
+          maximum: 10
+          default: 5
+        scheduled_at:
+          type: string
+          format: date-time
+          description: When to execute the job (for delayed jobs)
+        max_retries:
+          type: integer
+          description: Maximum retry attempts
+          minimum: 0
+          default: 5
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          description: Key-value metadata (e.g., tracing IDs)
+        unique_key:
+          type: string
+          description: Unique key for job deduplication
+
+    CreateJobResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+        status:
+          type: string
+          enum: [pending]
+        created_at:
+          type: string
+          format: date-time
+
+    Job:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+        payload:
+          type: string
+          format: byte
+        priority:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        scheduled_at:
+          type: string
+          format: date-time
+        attempts:
+          type: integer
+        max_retries:
+          type: integer
+        last_error:
+          type: string
+        status:
+          type: string
+          enum: [pending, processing, completed, failed, dead]
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        unique_key:
+          type: string
+        result:
+          type: string
+          format: byte
+
+    QueueStats:
+      type: object
+      properties:
+        pending_high:
+          type: integer
+          description: Jobs in high priority queue
+        pending_normal:
+          type: integer
+          description: Jobs in normal priority queue
+        pending_low:
+          type: integer
+          description: Jobs in low priority queue
+        processing:
+          type: integer
+          description: Jobs currently being processed
+        dead:
+          type: integer
+          description: Jobs in dead letter queue
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        details:
+          type: string
+          description: Additional error details
+
+tags:
+  - name: Health
+    description: Health and readiness checks
+  - name: Jobs
+    description: Job management operations
+  - name: Queues
+    description: Queue statistics
+  - name: Dead Letter Queue
+    description: Dead letter queue operations
