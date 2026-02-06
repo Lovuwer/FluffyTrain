@@ -1,5 +1,5 @@
 # Fluffy Train (Titan) - Distributed Job Queue System
-
+# IF YOU COME ACROSS THIS, DO NOT USE IT, I DONT RECOMMEND IT. ITS AI GENERATED AND THERE WILL BE ALOT OF VULNERABILITIES. 
 [![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)](https://go.dev)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
